@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  walletAddress String    @unique
+  email         String?   @unique
+  username      String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tokens        Token[]
+  transactions  Transaction[]
+  gorrBalance   Float     @default(0)
+}
+
+model Token {
+  id              String    @id @default(cuid())
+  name            String
+  symbol          String
+  description     String?
+  totalSupply     String
+  decimals        Int       @default(18)
+  logoUrl         String?
+  network         String    // solana, ethereum, bnb, gorrillazz
+  contractAddress String?   @unique
+  creatorId       String
+  creator         User      @relation(fields: [creatorId], references: [id])
+  status          String    @default("pending") // pending, deploying, deployed, failed
+  liquidityPool   LiquidityPool?
+  transactions    Transaction[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Token features
+  mintable        Boolean   @default(false)
+  burnable        Boolean   @default(false)
+  pausable        Boolean   @default(false)
+  
+  // Metadata
+  website         String?
+  twitter         String?
+  telegram        String?
+  discord         String?
+}
+
+model LiquidityPool {
+  id              String    @id @default(cuid())
+  tokenId         String    @unique
+  token           Token     @relation(fields: [tokenId], references: [id])
+  initialLiquidity String
+  lockPeriod      Int       // in days
+  lockedUntil     DateTime?
+  poolAddress     String?
+  status          String    @default("pending") // pending, active, locked, unlocked
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Transaction {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  tokenId         String?
+  token           Token?    @relation(fields: [tokenId], references: [id])
+  type            String    // deploy, transfer, swap, liquidity_add, liquidity_remove, deposit, withdrawal
+  amount          String?
+  fromAddress     String?
+  toAddress       String?
+  txHash          String?   @unique
+  network         String
+  status          String    @default("pending") // pending, confirmed, failed, revoked
+  paymentProvider String?   // revolut, stripe, paypal, card
+  paymentMethod   String?   // deposit, withdrawal
+  fiatAmount      Float?
+  fiatCurrency    String?
+  fee             Float?
+  netAmount       Float?
+  revokedAt       DateTime?
+  revokeReason    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model GorrPrice {
+  id        String   @id @default(cuid())
+  price     Float    // Price in USD
+  timestamp DateTime @default(now())
+}

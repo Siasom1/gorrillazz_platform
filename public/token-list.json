@@ -1,0 +1,55 @@
+{
+  "name": "Gorrillazz Token List",
+  "version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  },
+  "timestamp": "2025-01-15T00:00:00.000Z",
+  "logoURI": "https://gorrillazz.com/gorr-logo.png",
+  "keywords": ["gorrillazz", "tokens", "verified", "stablecoin"],
+  "tokens": [
+    {
+      "chainId": 1,
+      "address": "0x0000000000000000000000000000000000000000",
+      "name": "Gorrillazz",
+      "symbol": "GORR",
+      "decimals": 18,
+      "logoURI": "https://gorrillazz.com/gorr-logo.png",
+      "tags": ["stablecoin", "verified", "native"],
+      "extensions": {
+        "website": "https://gorrillazz.com",
+        "description": "Native stablecoin of the Gorrillazz platform with 1:1 USD peg",
+        "twitter": "https://twitter.com/gorrillazz",
+        "coingeckoId": "gorrillazz",
+        "coinmarketcapId": "gorrillazz",
+        "bridgeInfo": {
+          "ethereum": { "tokenAddress": "0x..." },
+          "bnb": { "tokenAddress": "0x..." },
+          "solana": { "tokenAddress": "..." }
+        }
+      }
+    },
+    {
+      "chainId": 1,
+      "address": "0x0000000000000000000000000000000000000001",
+      "name": "USD Coin Custom",
+      "symbol": "USDCc",
+      "decimals": 6,
+      "logoURI": "https://gorrillazz.com/usdcc-logo.png",
+      "tags": ["stablecoin", "verified"],
+      "extensions": {
+        "website": "https://gorrillazz.com",
+        "description": "Custom USD Coin on Gorrillazz network with 1:1 USD peg",
+        "twitter": "https://twitter.com/gorrillazz",
+        "coingeckoId": "usd-coin-custom",
+        "coinmarketcapId": "usdcc",
+        "bridgeInfo": {
+          "ethereum": { "tokenAddress": "0x..." },
+          "bnb": { "tokenAddress": "0x..." },
+          "solana": { "tokenAddress": "..." }
+        }
+      }
+    }
+  ]
+}
