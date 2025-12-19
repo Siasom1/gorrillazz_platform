@@ -35,6 +35,7 @@ const ADMIN_WALLET =
   (process.env.NEXT_PUBLIC_ADMIN_WALLET_ADDRESS || GORR_ADMIN_ADDRESS || "").toLowerCase()
 
 export default function AdminPage() {
+  
   const router = useRouter()
   const { address, chain, balance, gorrBalance, isConnected, disconnect } = useWallet()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -57,10 +58,38 @@ export default function AdminPage() {
   // ---- REALTIME PAYMENTS ----
   const [wsConnected, setWsConnected] = useState(false)
 
+  const [systemWallets, setSystemWallets] = useState<{
+  admin: string
+  treasury: string
+} | null>(null)
+
+
   // ---- PAYMENT ADMIN STATE ----
   const [adminMerchantPayments, setAdminMerchantPayments] = useState<any[]>([])
   const [paymentsLoading, setPaymentsLoading] = useState(false)
   const [paymentsError, setPaymentsError] = useState("")
+
+
+  // --- Admin Safety UX (D.4.3.d) ---
+const [confTarget, setConfTarget] = useState("")
+const [confAmount, setConfAmount] = useState<string>("")
+const [confToken, setConfToken] = useState<"GORR" | "USDCc">("GORR")
+const [confBusy, setConfBusy] = useState(false)
+const [confErr, setConfErr] = useState("")
+const [confOk, setConfOk] = useState("")
+const [showConfConfirm, setShowConfConfirm] = useState(false)
+
+
+const rpc = async <T,>(method: string, params: any[] = []): Promise<T> => {
+  const res = await fetch("http://localhost:9000", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", method, params, id: Date.now() }),
+  })
+  const json = await res.json()
+  if (json.error) throw new Error(json.error.message || "RPC error")
+  return json.result as T
+}
 
   // ----------------------------------------------------
   // AUTH OP BASIS VAN WALLET (admin only)
@@ -121,10 +150,6 @@ export default function AdminPage() {
     return () => ws.close()
   }, [isAuthenticated])
 
-  const [systemWallets, setSystemWallets] = useState<{
-  admin: string
-  treasury: string
-} | null>(null)
 
 useEffect(() => {
   if (!isAuthenticated) return
@@ -162,6 +187,13 @@ useEffect(() => {
   loadSystemBalances()
 }, [systemWallets])
 
+
+useEffect(() => {
+  if (!isAuthenticated) return
+  rpc<{ admin: string; treasury: string }>("gorr_getSystemWallets", [])
+    .then(setSystemWallets)
+    .catch(() => {})
+}, [isAuthenticated])
 
 
   // ----------------------------------------------------
@@ -316,6 +348,44 @@ const fetchOnchainBalances = async (wallet: string) => {
       setPaymentsLoading(false)
     }
   }
+
+  const doConfiscate = async () => {
+  setConfBusy(true)
+  setConfErr("")
+  setConfOk("")
+  try {
+    const amt = Number(confAmount)
+    if (!confTarget || !confTarget.startsWith("0x") || confTarget.length !== 42) {
+      throw new Error("Invalid target address")
+    }
+    if (!Number.isFinite(amt) || amt <= 0) {
+      throw new Error("Amount must be > 0")
+    }
+    if (confToken !== "GORR" && confToken !== "USDCc") {
+      throw new Error("Invalid token")
+    }
+
+    const result = await rpc<any>("gorr_adminForceTransfer", [
+      {
+        from: address, // connected wallet
+        target: confTarget,
+        amount: amt,
+        token: confToken,
+      },
+    ])
+
+    setConfOk(`Confiscated ${confAmount} ${confToken} from ${confTarget}`)
+    setShowConfConfirm(false)
+
+    // refresh balances/stats UI
+    await Promise.all([fetchBalances(), fetchAdminPayments()])
+  } catch (e: any) {
+    setConfErr(e?.message ?? "Confiscation failed")
+  } finally {
+    setConfBusy(false)
+  }
+}
+
 
   
 
@@ -802,6 +872,157 @@ const handleAdminBurn = async (
             )}
           </GlassCard>
 
+          {/* ADMIN CONFISCATION (D.4.3.c + d) */}
+<GlassCard className="p-6 mb-6">
+  <h2 className="text-xl font-bold text-white mb-2">
+    Admin Confiscation (Force Transfer)
+  </h2>
+
+  <p className="text-white/60 text-sm mb-4">
+    Moves funds from a target wallet directly into the Treasury wallet.
+    Use only for fraud/recovery.
+  </p>
+
+  {systemWallets?.treasury && (
+    <div className="text-xs text-white/60 mb-4">
+      Treasury: <span className="text-white/80">{systemWallets.treasury}</span>
+    </div>
+  )}
+
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div>
+      <label className="block text-white/80 text-sm font-medium mb-2">
+        Target wallet
+      </label>
+      <GlassInput
+        label="Target"
+        type="text"
+        value={confTarget}
+        onChange={(e) => setConfTarget(e.target.value)}
+        placeholder="0x..."
+        className="w-full"
+      />
+    </div>
+
+    <div>
+      <label className="block text-white/80 text-sm font-medium mb-2">
+        Token
+      </label>
+      <div className="flex gap-2">
+        <GlassButton
+          type="button"
+          variant={confToken === "GORR" ? "primary" : "transparent"}
+          size="sm"
+          onClick={() => setConfToken("GORR")}
+        >
+          GORR
+        </GlassButton>
+        <GlassButton
+          type="button"
+          variant={confToken === "USDCc" ? "primary" : "transparent"}
+          size="sm"
+          onClick={() => setConfToken("USDCc")}
+        >
+          USDCc
+        </GlassButton>
+      </div>
+    </div>
+
+    <div>
+      <label className="block text-white/80 text-sm font-medium mb-2">
+        Amount
+      </label>
+      <GlassInput
+        label="Amount"
+        type="number"
+        value={confAmount}
+        onChange={(e) => setConfAmount(e.target.value)}
+        placeholder="e.g. 1"
+        className="w-full"
+      />
+    </div>
+  </div>
+
+  <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div className="text-xs text-white/60">
+      Safety checks:
+      <ul className="list-disc ml-5 mt-1 space-y-1">
+        <li>Amount must be &gt; 0</li>
+        <li>Token must be GORR or USDCc</li>
+        <li>Target must be a valid 0x address</li>
+      </ul>
+    </div>
+
+    <GlassButton
+      type="button"
+      variant="danger"
+      disabled={confBusy}
+      onClick={() => {
+        setConfErr("")
+        setConfOk("")
+        setShowConfConfirm(true)
+      }}
+    >
+      {confBusy ? "Working..." : "Confiscate → Treasury"}
+    </GlassButton>
+  </div>
+
+  {confErr && (
+    <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+      <p className="text-red-400 text-sm">{confErr}</p>
+    </div>
+  )}
+
+  {confOk && (
+    <div className="mt-4 bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+      <p className="text-green-400 text-sm">{confOk}</p>
+    </div>
+  )}
+
+  {showConfConfirm && (
+    <div className="mt-6 p-4 rounded-xl bg-white/5 border border-white/10">
+      <p className="text-white font-semibold mb-2">
+        Confirm confiscation
+      </p>
+      <p className="text-white/70 text-sm mb-4">
+        You are about to move{" "}
+        <span className="text-white">
+          {confAmount} {confToken}
+        </span>{" "}
+        from{" "}
+        <span className="text-white">
+          {confTarget || "—"}
+        </span>{" "}
+        into Treasury{" "}
+        <span className="text-white">
+          {systemWallets?.treasury || "—"}
+        </span>.
+        This is irreversible.
+      </p>
+
+      <div className="flex gap-2">
+        <GlassButton
+          type="button"
+          variant="transparent"
+          onClick={() => setShowConfConfirm(false)}
+          disabled={confBusy}
+        >
+          Cancel
+        </GlassButton>
+        <GlassButton
+          type="button"
+          variant="danger"
+          onClick={doConfiscate}
+          disabled={confBusy}
+        >
+          Confirm & Execute
+        </GlassButton>
+      </div>
+    </div>
+  )}
+</GlassCard>
+
+
           <GlassCard className="p-6 mb-6">
             <h2 className="text-xl font-bold text-white mb-4">Fee Structure</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -890,7 +1111,3 @@ const handleAdminBurn = async (
     </>
   )
 }
-function rpc(arg0: string, arg1: { from: string; to: string; amount: number; token: "GORR" | "USDCc" }[]) {
-  throw new Error("Function not implemented.")
-}
-
