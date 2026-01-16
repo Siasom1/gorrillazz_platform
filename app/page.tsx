@@ -56,10 +56,10 @@ export default function HomePage() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="text-5xl md:text-7xl font-bold text-foreground mb-6 tracking-tight"
           >
-            Create tokens across
+            Buy, Exchange and get GORR Coins on
             <br />
             <span className="bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
-              any blockchain
+              GORRILLAZZ Chain or any blockchain
             </span>
           </motion.h1>
 
@@ -67,10 +67,10 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed"
+            className="text-lg md:text-xl text-muted-foreg round mb-10 max-w-2xl mx-auto leading-relaxed"
           >
-            Deploy tokens on our custom Gorrillazz network, Ethereum, BNB, and Solana. Add liquidity instantly. Pay with
-            our custom GORR COIN. All in one platform.
+            And deploy tokens on our custom Gorrillazz network, Ethereum, BNB, and Solana. Add liquidity instantly. Pay with
+            our custom GORR COIN. All in one platforms buy and sell any coins on GORRILLAZZ network.
           </motion.p>
 
           <motion.div
@@ -84,7 +84,7 @@ export default function HomePage() {
               onClick={handleCreateToken}
               className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 text-lg rounded-2xl group transition-all duration-300"
             >
-              Start Now
+              Let's get started
               <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform duration-300" />
             </Button>
             <Button
@@ -93,7 +93,7 @@ export default function HomePage() {
               className="bg-accent hover:bg-accent/90 text-accent-foreground px-8 py-6 text-lg rounded-2xl group transition-all duration-300"
             >
               <Wallet className="mr-2 group-hover:scale-110 transition-transform duration-300" />
-              Create Wallet
+              Create Your Wallet
             </Button>
           </motion.div>
 
