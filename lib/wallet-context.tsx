@@ -1,11 +1,21 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from "react"
 import { ethers } from "ethers"
+import { WalletBalances } from "./types"
+import { rpc } from "./wallet-provider"
 import {
   getGorrBalancesParsed,
   connectPaymentWebSocket,
   sendNativeGORR,
+  sendUSDCc,
 } from "@/lib/gorr"
 import type { PaymentUpdatedEvent } from "@/lib/gorr"
 
@@ -19,20 +29,18 @@ interface WalletContextType {
   isConnected: boolean
   isConnecting: boolean
 
-  balance: number                     // UI portfolio balance
-  gorrBalance: bigint                 // On-chain native GORR balance
-  usdcBalance: bigint                 // On-chain USDCc balance
+  balances: WalletBalances
+  gorrBalance: bigint
+  usdcBalance: bigint
 
   connect: (type: WalletType) => Promise<void>
   disconnect: () => void
   switchChain: (chain: ChainType) => Promise<void>
-
   refreshBalance: () => Promise<void>
 
-  // NEW: native transaction
   sendGORR: (recipient: string, amount: string) => Promise<string>
+  sendUSDC: (recipient: string, amount: string) => Promise<string>
 
-  // NEW: last payment update event
   lastPaymentUpdate: PaymentUpdatedEvent | null
 }
 
@@ -48,14 +56,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const [balance, setBalance] = useState(0)
 
-  // ⚡ NEW — REAL CHAIN BALANCES
   const [gorrBalance, setGorrBalance] = useState<bigint>(0n)
   const [usdcBalance, setUsdcBalance] = useState<bigint>(0n)
 
-  // ⚡ NEW — WebSocket payments
-  const [lastPaymentUpdate, setLastPaymentUpdate] = useState<PaymentUpdatedEvent | null>(null)
+  const [lastPaymentUpdate, setLastPaymentUpdate] =
+    useState<PaymentUpdatedEvent | null>(null)
 
-  // Restore session
   useEffect(() => {
     const w = localStorage.getItem("gorrillazz_wallet")
     const a = localStorage.getItem("gorrillazz_address")
@@ -68,7 +74,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // 🔥 Auto WebSocket connect
   useEffect(() => {
     if (!isConnected) return
 
@@ -76,16 +81,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       onPaymentUpdated: (evt) => {
         console.log("[WS] Payment updated:", evt)
         setLastPaymentUpdate(evt)
-        refreshBalance() // auto-refresh wallet upon payment settlement
+        refreshBalance()
       },
     })
 
     return () => ws.close()
   }, [isConnected])
-
-  // ------------------------------------------------------------------------------
-  // CONNECTORS
-  // ------------------------------------------------------------------------------
 
   const connect = async (type: WalletType) => {
     setIsConnecting(true)
@@ -152,25 +153,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setChain("bnb")
   }
 
-  // ------------------------------------------------------------------------------
-  // BALANCES
-  // ------------------------------------------------------------------------------
-
   const refreshBalance = async () => {
     if (!address || chain !== "gorrillazz") return
 
     try {
       const parsed = await getGorrBalancesParsed(address)
-
       setGorrBalance(parsed.GORR)
       setUsdcBalance(parsed.USDCc)
 
-      // UI placeholder: convert balances → fake USD value
-      const value =
-        Number(parsed.GORR) / 1e18 +
-        Number(parsed.USDCc) / 1e18
-
-      setBalance(value)
+      const uiValue =
+        Number(parsed.GORR) / 1e18 + Number(parsed.USDCc) / 1e18
+      setBalance(uiValue)
     } catch (err) {
       console.error("[GORR] Failed to refresh balances", err)
     }
@@ -180,25 +173,33 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     if (isConnected) refreshBalance()
   }, [isConnected, address, chain])
 
-  // ------------------------------------------------------------------------------
-  // SEND GORR
-  // ------------------------------------------------------------------------------
-
   const sendGORR = async (recipient: string, amount: string): Promise<string> => {
     if (!walletType || !address) throw new Error("Wallet not connected")
 
-    // Retrieve and decrypt local wallet
     const encrypted = localStorage.getItem("gorrillazz_encrypted_key")
     if (!encrypted) throw new Error("No local wallet found")
 
-    const wallet = await ethers.Wallet.fromEncryptedJson(encrypted, "placeholder-pass")
+    const wallet = await ethers.Wallet.fromEncryptedJson(
+      encrypted,
+      "placeholder-pass"
+    )
 
-    return sendNativeGORR(wallet, recipient, amount)
+    return await sendNativeGORR(wallet, recipient, amount)
   }
 
-  // ------------------------------------------------------------------------------
-  // DISCONNECT
-  // ------------------------------------------------------------------------------
+  const sendUSDC = async (recipient: string, amount: string): Promise<string> => {
+    if (!walletType || !address) throw new Error("Wallet not connected")
+
+    const encrypted = localStorage.getItem("gorrillazz_encrypted_key")
+    if (!encrypted) throw new Error("No local wallet found")
+
+    const wallet = await ethers.Wallet.fromEncryptedJson(
+      encrypted,
+      "placeholder-pass"
+    )
+
+    return await sendUSDCc(wallet, recipient, amount)
+  }
 
   const disconnect = () => {
     setAddress(null)
@@ -209,7 +210,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     localStorage.clear()
   }
 
-  const switchChain = async () => {}
+  const switchChain = async (_chain?: ChainType) => {
+    console.warn("Switch not implemented yet")
+  }
 
   return (
     <WalletContext.Provider
@@ -219,18 +222,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         chain,
         isConnected,
         isConnecting,
-
-        balance,         // UI-friendly
-        gorrBalance,     // bigint
-        usdcBalance,     // bigint
-
+        balances: { gorr: gorrBalance, usdc: usdcBalance },
+        gorrBalance,
+        usdcBalance,
         connect,
         disconnect,
         switchChain,
         refreshBalance,
-
         sendGORR,
-
+        sendUSDC,
         lastPaymentUpdate,
       }}
     >

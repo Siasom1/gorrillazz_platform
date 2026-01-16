@@ -14,6 +14,8 @@ import GlassToggle from "@/components/glass/glass-toggle"
 import { useWallet } from "@/lib/wallet-context"
 import { Wallet, Copy, Check, TrendingUp, TrendingDown, RefreshCw, Shield } from "lucide-react"
 import { SUPPORTED_CHAINS } from "@/lib/constants/gorr-token"
+import {fetchMercentPayments} from "@/lib/merchant=api"
+import MerchantDashboard from "@/components/merchant/merchant-dashboard"
 
 interface PendingToken {
   chainId: number
@@ -27,6 +29,8 @@ interface PendingToken {
     description?: string
   }
 }
+
+
 
 // Hoofd admin-wallet (voor auth + merchant payments)
 const GORR_ADMIN_ADDRESS = process.env.NEXT_PUBLIC_GORR_ADMIN_ADDRESS!
@@ -49,8 +53,7 @@ export default function AdminPage() {
   const [selectedChain, setSelectedChain] = useState<string>("all")
   const [tokens, setTokens] = useState<any[]>([])
   const [balances, setBalances] = useState<any>(null)
-  
-
+  const [payments, setPayments] = useState<any[]>([])
   
   const [gorrAdminOnchain, setGorrAdminOnchain] = useState<{ GORR: string; USDCc: string } | null>(null)
   const [gorrTreasuryOnchain, setGorrTreasuryOnchain] = useState<{ GORR: string; USDCc: string } | null>(null)
@@ -218,6 +221,44 @@ useEffect(() => {
   await fetchAdminPayments()
 }
 
+const fetchPayments = async () => {
+  if (!address) return
+  try {
+    setLoading(true)  
+    const data = await fetchMercentPayments(address)
+    setPayments(data.payments || [])
+  } catch (err) {
+    console.error("[Merchant] Failed to fetch payments:", err)
+  } finally {
+    setLoading(false)
+  }
+}
+
+useEffect(() => {
+  if (!lastPaymentUpdate) return
+  setPayments((prev) => { 
+    const index = prev.findIndex((p) => p.txHash === lastPaymentUpdate.tsHash)
+    if (index > -1) {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], status: lastPaymentUpdate.status }
+      return updated
+    } else {
+      return [lastPaymentUpdate, ...prev]
+    }
+  })
+}, [lastPaymentUpdate])
+
+useEffect(() => {
+  if (isConnected ) fetchPayments()
+}, [isConnected, address])
+
+const copyAddress = () => {
+  if (address) {
+    navigator.clipboard.writeText(address)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+}
   
   const fetchPendingTokens = async () => {
     try {
@@ -809,6 +850,8 @@ const handleAdminBurn = async (
             <div className={`w-2 h-2 rounded-full ${wsConnected ? "bg-green-400" : "bg-red-400"}`}></div>
             <span>Realtime payments {wsConnected ? "online" : "offline"}</span>
           </div>
+
+          <MerchantDashboard />
 
           {/* ADMIN PAYMENT OVERVIEW */}
           <GlassCard className="p-6 mb-6">
